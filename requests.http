@@ -1,0 +1,53 @@
+### Menu
+GET http://localhost:8080/dishes
+
+### One dish
+GET http://localhost:8080/dishes/1
+
+### Create order (201, 400, 404, 409 or 502)
+POST http://localhost:8080/orders
+Content-Type: application/json
+
+{"dishId": 1, "quantity": 2}
+
+### Order by id
+GET http://localhost:8080/orders/1
+
+### Invalid quantity (400)
+POST http://localhost:8080/orders
+Content-Type: application/json
+
+{"dishId": 1, "quantity": 0}
+
+### Review (202 Accepted, published to RabbitMQ)
+POST http://localhost:8080/reviews
+Content-Type: application/json
+
+{"dishId": 1, "rating": 5, "comment": "Great"}
+
+### Invalid rating (400)
+POST http://localhost:8080/reviews
+Content-Type: application/json
+
+{"dishId": 1, "rating": 9, "comment": "Too good"}
+
+### Ranking (review-service, refreshed every 5 s)
+GET http://localhost:8083/reviews/ranking
+
+### Assistant: on topic
+POST http://localhost:8080/assistant
+Content-Type: application/json
+
+{"question": "Tem prato vegetariano até R$ 40?"}
+
+### Assistant: off topic (should politely refuse)
+POST http://localhost:8080/assistant
+Content-Type: application/json
+
+{"question": "Quem ganhou a Copa de 2002?"}
+
+### Payment-service direct (internal; the app never calls it)
+POST http://localhost:8081/payments
+Content-Type: application/json
+
+{"amount": 79.80}

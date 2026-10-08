@@ -1,0 +1,29 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: review-service
+
+  datasource:
+    url: jdbc:h2:mem:reviewdb;DB_CLOSE_DELAY=-1
+    username: sa
+    password:
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+# Eureka and RabbitMQ use the framework defaults (Eureka :8761, RabbitMQ :5672).
+# Override with EUREKA_CLIENT_SERVICEURL_DEFAULTZONE and SPRING_RABBITMQ_HOST when needed.
+
+reviews:
+  flush-interval-ms: 5000
+
+eureka:
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    registry-fetch-interval-seconds: 5

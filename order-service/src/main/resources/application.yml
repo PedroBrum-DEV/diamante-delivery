@@ -1,0 +1,52 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: order-service
+
+  config:
+    # Optional: lets a git-ignored .env file (KEY=value) provide OPENAI_API_KEY, OPENAI_MODEL...
+    import: optional:file:.env[.properties],optional:file:../.env[.properties]
+
+  datasource:
+    # LOCK_TIMEOUT: concurrent orders wait (up to 60s) for the dish row lock instead of failing.
+    url: jdbc:h2:mem:orderdb;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=60000
+    username: sa
+    password:
+    hikari:
+      maximum-pool-size: 20
+      connection-timeout: 60000
+
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+  ai:
+    openai:
+      # The key ALWAYS comes from the environment, never from the repository.
+      api-key: ${OPENAI_API_KEY:not-configured}
+      chat:
+        # Both keys are set so the model is picked up whichever property layout the starter uses.
+        model: ${OPENAI_MODEL:gpt-4o-mini}
+        options:
+          model: ${OPENAI_MODEL:gpt-4o-mini}
+
+# Eureka and RabbitMQ use the framework defaults (Eureka :8761, RabbitMQ :5672).
+# Override with EUREKA_CLIENT_SERVICEURL_DEFAULTZONE and SPRING_RABBITMQ_HOST when needed.
+
+delivery:
+  rate-limit:
+    orders-per-second: 20
+
+eureka:
+  instance:
+    prefer-ip-address: true
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    registry-fetch-interval-seconds: 5
+
+logging:
+  level:
+    com.diamante.delivery: INFO

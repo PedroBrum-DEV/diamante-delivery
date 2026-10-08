@@ -1,0 +1,15 @@
+server:
+  # Second instance: ./gradlew :payment-service:bootRun --args='--server.port=8082'
+  port: 8081
+
+spring:
+  application:
+    name: payment-service
+
+eureka:
+  instance:
+    prefer-ip-address: true
+    # Two instances of the same app need distinct ids in the registry.
+    instance-id: ${spring.application.name}:${server.port}
+  client:
+    registry-fetch-interval-seconds: 5

@@ -1,0 +1,9 @@
+# Profile "local": use a model served by LM Studio / Ollama (OpenAI-compatible API).
+#   SPRING_PROFILES_ACTIVE=local
+#   OPENAI_BASE_URL=<server address>/v1   (see .env.example)
+#   OPENAI_MODEL=<model name loaded in the server>
+spring:
+  ai:
+    openai:
+      base-url: ${OPENAI_BASE_URL}
+      api-key: ${OPENAI_API_KEY:local}
