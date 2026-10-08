@@ -6,9 +6,9 @@ Monorepo **delivery-system** (Gradle) — Java Advanced, 2º semestre.
 
 | Nome | RM |
 |------|----|
-| _preencher_ | _preencher_ |
-| _preencher_ | _preencher_ |
-| _preencher_ | _preencher_ |
+| Arthur Brito da Silva | 562085 |
+| Luiz Felipe Flosi dos Santos | 563197 |
+| Pedro Henrique Brum Lopes | 561780 |
 
 ## Stack
 
@@ -23,7 +23,7 @@ App React Native ──REST──▶ order-service :8080 ──registro──▶
                              ├─ LB + retry ─▶ payment-service :8081 / :8082  (falha em ~50%)
                              ├─ AMQP ─▶ RabbitMQ: delivery.exchange ─(reviews.new)─▶ reviews.queue
                              │                                                    │
-                             └─ ChatClient ─▶ OpenAI / LM Studio / Ollama         ▼
+                             └─ ChatClient ─▶ Groq / OpenAI / LM Studio / Ollama         ▼
                                                               review-service :8083
                                                               buffer + flush a cada 5 s · ranking
 ```
@@ -35,36 +35,160 @@ App React Native ──REST──▶ order-service :8080 ──registro──▶
 | `payment-service` | 8081 / 8082 | Pagamento simulado, instável (500 em ~50% das chamadas) |
 | `review-service` | 8083 | Consome avaliações, acumula em memória, grava a cada 5 s, ranking |
 
-## Como rodar
+## Como rodar (passo a passo)
 
-Pré-requisitos: **JDK 25** e **Docker**.
+### 0. Pré-requisitos
+
+| Ferramenta | Versão | Como conferir |
+|---|---|---|
+| JDK | **25** | `java -version` |
+| Docker Desktop | qualquer recente (precisa estar **aberto**) | `docker --version` |
+| Git | qualquer | `git --version` |
+
+Não precisa instalar Gradle: o projeto usa o wrapper (`gradlew`).
+
+### 1. Clonar o projeto
 
 ```bash
-# 1. RabbitMQ (painel em http://localhost:15672, guest/guest)
-docker compose up -d
+git clone https://github.com/PedroBrum-DEV/diamante-delivery.git
+cd diamante-delivery
+```
 
-# 2. Cada serviço em um terminal, nesta ordem
-./gradlew :eureka-server:bootRun
-./gradlew :payment-service:bootRun
-./gradlew :payment-service:bootRun --args='--server.port=8082'   # segunda instância
-./gradlew :review-service:bootRun
+### 2. Subir o RabbitMQ
+
+Com o Docker Desktop aberto, na raiz do projeto:
+
+```bash
+docker compose up -d
+```
+
+Confirme em <http://localhost:15672> (usuário `guest`, senha `guest`).
+
+### 3. Configurar o assistente de IA (Groq, gratuito)
+
+O assistente usa uma API compatível com a OpenAI. Recomendamos a **Groq**, que tem camada gratuita.
+
+1. Crie uma chave em <https://console.groq.com/keys> (ela começa com `gsk_`).
+2. Copie o arquivo de exemplo:
+
+   ```bash
+   cp .env.example .env          # Windows PowerShell: Copy-Item .env.example .env
+   ```
+
+3. Edite o `.env` (ele está no `.gitignore`, **nunca** vai para o repositório) deixando assim:
+
+   ```properties
+   OPENAI_BASE_URL=https://api.groq.com/openai/v1
+   OPENAI_API_KEY=gsk_sua_chave_aqui
+   OPENAI_MODEL=openai/gpt-oss-20b
+   ```
+
+   O nome do modelo pode mudar com o tempo. Confira a lista atual em <https://console.groq.com/docs/models>.
+
+4. **Importante:** o perfil `local` (que aplica o `OPENAI_BASE_URL`) precisa ser ativado como **variável de ambiente do terminal**. Colocar `SPRING_PROFILES_ACTIVE` dentro do `.env` **não funciona**. Isso é feito no passo 4, no terminal do `order-service`.
+
+> Sem chave configurada, todo o resto funciona normalmente. Apenas `POST /assistant` responde `503 {"error": "..."}`.
+
+### 4. Subir os serviços (um terminal para cada)
+
+Abra **cinco terminais** na raiz do projeto e rode nesta ordem. Espere cada serviço terminar de subir (aparece `Started ...` no log) antes de passar ao próximo.
+
+| Terminal | Serviço | Comando (Linux/macOS) | Comando (Windows PowerShell) |
+|---|---|---|---|
+| 1 | Eureka | `./gradlew :eureka-server:bootRun` | `.\gradlew.bat :eureka-server:bootRun` |
+| 2 | Pagamento (8081) | `./gradlew :payment-service:bootRun` | `.\gradlew.bat :payment-service:bootRun` |
+| 3 | Pagamento (8082) | `./gradlew :payment-service:bootRun --args='--server.port=8082'` | `.\gradlew.bat :payment-service:bootRun --args="--server.port=8082"` |
+| 4 | Avaliações | `./gradlew :review-service:bootRun` | `.\gradlew.bat :review-service:bootRun` |
+| 5 | Pedidos + IA | veja abaixo | veja abaixo |
+
+**Terminal 5 (order-service) com a IA da Groq:**
+
+Linux/macOS:
+
+```bash
+export SPRING_PROFILES_ACTIVE=local
 ./gradlew :order-service:bootRun
 ```
 
-Eureka: <http://localhost:8761> — devem aparecer `ORDER-SERVICE`, `PAYMENT-SERVICE` (2 instâncias) e `REVIEW-SERVICE`.
+Windows PowerShell:
 
-### Assistente de IA (chave nunca vai para o repositório)
-
-```bash
-cp .env.example .env     # .env está no .gitignore
-# edite OPENAI_API_KEY no .env  (o order-service lê o arquivo ao subir)
+```powershell
+$env:SPRING_PROFILES_ACTIVE = "local"
+.\gradlew.bat :order-service:bootRun
 ```
 
-Ou exporte as variáveis de ambiente: `export OPENAI_API_KEY=sk-...`
+No log de inicialização deve aparecer `The following 1 profile is active: "local"`. Se aparecer `No active profile set`, o perfil não foi ativado e a chamada irá para a OpenAI (erro 401).
 
-**Modelo local (LM Studio / Ollama):** suba o servidor local, defina `OPENAI_BASE_URL` (ex.: LM Studio `…:1234/v1`, Ollama `…:11434/v1`) e `OPENAI_MODEL`, e rode o order-service com `SPRING_PROFILES_ACTIVE=local`. Veja `.env.example`.
+Se quiser usar a OpenAI de verdade em vez da Groq, remova `OPENAI_BASE_URL` do `.env`, coloque sua chave `sk-...` em `OPENAI_API_KEY` e **não** ative o perfil `local`.
 
-> Sem chave, tudo funciona normalmente; apenas `POST /assistant` responde `503 {"error": "..."}`.
+### 5. Conferir que está tudo no ar
+
+Abra o Eureka em <http://localhost:8761>. Devem aparecer:
+
+- `ORDER-SERVICE`
+- `PAYMENT-SERVICE` (2 instâncias: 8081 e 8082)
+- `REVIEW-SERVICE`
+
+### 6. Testar o assistente
+
+Linux/macOS/Git Bash:
+
+```bash
+curl -X POST http://localhost:8080/assistant \
+  -H "Content-Type: application/json" \
+  -d '{"question": "O que vocês têm no cardápio?"}'
+```
+
+Windows PowerShell (o corpo é enviado em UTF-8 para os acentos funcionarem):
+
+```powershell
+$body = '{"question": "O que vocês têm no cardápio?"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/assistant -ContentType "application/json; charset=utf-8" -Body ([System.Text.Encoding]::UTF8.GetBytes($body))
+```
+
+O PowerShell 5.1 pode exibir os acentos da resposta quebrados (`OpÃ§Ãµes`). É só a exibição no terminal: a API envia o texto correto. No app e no `requests.http` isso não acontece.
+
+Outros exemplos prontos estão em [`requests.http`](requests.http) (extensão REST Client no VS Code ou o HTTP Client do IntelliJ).
+
+### 7. Parar tudo
+
+`Ctrl+C` em cada terminal de serviço e, para o RabbitMQ:
+
+```bash
+docker compose down
+```
+
+### Problemas comuns
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| `POST /assistant` retorna **400** no PowerShell | Acentos enviados fora de UTF-8 | Use o comando do passo 6 com `GetBytes` |
+| `POST /assistant` retorna **503** | A chamada à IA falhou | Veja o `Caused by:` no log do `order-service` |
+| `401 Incorrect API key ... platform.openai.com` | Perfil `local` não ativado, a chave da Groq foi para a OpenAI | `SPRING_PROFILES_ACTIVE=local` no terminal (passo 4) |
+| `429 ... no credits remaining` | Conta da OpenAI sem crédito | Adicione crédito ou use a Groq |
+| `429` da Groq | Limite da camada gratuita | Aguarde alguns instantes |
+| `404` / `model_not_found` | Nome do modelo inválido | Confira `OPENAI_MODEL` na lista da Groq |
+| `SSLHandshakeException: PKIX path building failed` | Rede (escola, empresa ou antivírus) intercepta o HTTPS e o Java não confia no certificado | Veja abaixo |
+| Log com `localhost:8761 Connection refused` | Eureka não está rodando | Suba o `eureka-server` (terminal 1) |
+| `Connection refused` na porta 5672 | RabbitMQ parado | `docker compose up -d` com o Docker Desktop aberto |
+
+**Erro de certificado (PKIX):** faça o Java usar os certificados do Windows, no mesmo terminal do `order-service`, antes do `bootRun`:
+
+```powershell
+.\gradlew.bat --stop
+$env:JAVA_TOOL_OPTIONS = "-Djavax.net.ssl.trustStoreType=WINDOWS-ROOT"
+```
+
+Se persistir, teste em outra rede (por exemplo, o hotspot do celular).
+
+### Alternativa: modelo local (LM Studio / Ollama)
+
+Sem internet e sem chave. Suba o servidor local, ajuste o `.env` e ative o perfil `local`:
+
+```properties
+OPENAI_BASE_URL=http://localhost:11434/v1     # Ollama (LM Studio: http://localhost:1234/v1)
+OPENAI_MODEL=nome-do-modelo-carregado
+```
 
 ### Variáveis opcionais
 
@@ -115,6 +239,7 @@ O estoque é reservado, o pagamento é cobrado e o pedido é confirmado numa **�
 
 ```bash
 # 50 pedidos simultâneos no prato da promoção (id 1, stock 10)
+# (script em bash: no Windows, rode pelo Git Bash)
 ./scripts/concurrency-test.sh
 
 # Teste automatizado (pagamento mockado): 50 threads => 10 pedidos, stock 0; falha de pagamento => rollback
